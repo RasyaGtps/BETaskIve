@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"taskive/models"
@@ -136,4 +137,50 @@ func (c *ProjectController) AddMember(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (c *ProjectController) GetUserInvitations(ctx *gin.Context) {
+	userID := ctx.GetUint("user_id")
+	fmt.Printf("Getting invitations for user ID: %d\n", userID) // Debug log
+	invitations, err := c.projectService.GetUserInvitations(userID)
+	if err != nil {
+		fmt.Printf("Error getting invitations: %v\n", err) // Debug log
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	fmt.Printf("Found %d invitations\n", len(invitations)) // Debug log
+	ctx.JSON(http.StatusOK, invitations)
+}
+
+func (c *ProjectController) AcceptInvitation(ctx *gin.Context) {
+	projectID, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid project ID"})
+		return
+	}
+
+	userID := ctx.GetUint("user_id")
+	if err := c.projectService.AcceptInvitation(uint(projectID), userID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (c *ProjectController) RejectInvitation(ctx *gin.Context) {
+	projectID, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid project ID"})
+		return
+	}
+
+	userID := ctx.GetUint("user_id")
+	if err := c.projectService.RejectInvitation(uint(projectID), userID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 } 

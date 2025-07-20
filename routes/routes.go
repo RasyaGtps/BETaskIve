@@ -4,6 +4,7 @@ import (
 	"taskive/controllers"
 	"taskive/middlewares"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -12,8 +13,16 @@ func SetupRouter(
 	projectController *controllers.ProjectController,
 	taskController *controllers.TaskController,
 	commentController *controllers.CommentController,
+	invitationController *controllers.InvitationController,
 ) *gin.Engine {
 	router := gin.Default()
+
+	// CORS middleware
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:5173", "http://localhost:5174"}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	router.Use(cors.New(config))
 
 	// Middleware global
 	router.Use(middlewares.LoggerMiddleware())
@@ -23,12 +32,16 @@ func SetupRouter(
 	{
 		auth.POST("/register", authController.Register)
 		auth.POST("/login", authController.Login)
+		auth.GET("/me", middlewares.AuthMiddleware(), authController.GetCurrentUser)
 	}
 
 	// Protected routes
 	api := router.Group("/api")
 	api.Use(middlewares.AuthMiddleware())
 	{
+		// Users
+		api.GET("/users", authController.GetUserByEmail)
+
 		// Projects
 		projects := api.Group("/projects")
 		{
@@ -42,6 +55,14 @@ func SetupRouter(
 			// Tasks within project
 			projects.GET("/:id/tasks", taskController.GetProjectTasks)
 			projects.POST("/:id/tasks", taskController.Create)
+		}
+
+		// Invitations
+		invitations := api.Group("/invitations")
+		{
+			invitations.GET("", projectController.GetUserInvitations)
+			invitations.POST("/:id/accept", projectController.AcceptInvitation)
+			invitations.POST("/:id/reject", projectController.RejectInvitation)
 		}
 
 		// Tasks

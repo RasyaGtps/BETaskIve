@@ -43,12 +43,14 @@ func main() {
 	projectService := services.NewProjectService(db)
 	taskService := services.NewTaskService(db)
 	commentService := services.NewCommentService(db)
+	invitationService := services.NewInvitationService(db)
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(authService)
 	projectController := controllers.NewProjectController(projectService)
 	taskController := controllers.NewTaskController(taskService)
 	commentController := controllers.NewCommentController(commentService)
+	invitationController := controllers.NewInvitationController(invitationService)
 
 	// Setup router
 	router := routes.SetupRouter(
@@ -56,6 +58,7 @@ func main() {
 		projectController,
 		taskController,
 		commentController,
+		invitationController,
 	)
 
 	// Start server

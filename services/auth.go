@@ -54,17 +54,17 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 	return user, nil
 }
 
-func (s *AuthService) Login(input LoginInput) (string, error) {
+func (s *AuthService) Login(input LoginInput) (string, *models.User, error) {
 	var user models.User
 	if err := s.db.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return "", models.ErrUserNotFound
+			return "", nil, models.ErrUserNotFound
 		}
-		return "", err
+		return "", nil, err
 	}
 
 	if !user.CheckPassword(input.Password) {
-		return "", models.ErrInvalidPassword
+		return "", nil, models.ErrInvalidPassword
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -74,8 +74,27 @@ func (s *AuthService) Login(input LoginInput) (string, error) {
 
 	tokenString, err := token.SignedString([]byte(config.AppConfig.JWTSecret))
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return tokenString, nil
-} 
+	return tokenString, &user, nil
+}
+
+func (s *AuthService) GetCurrentUser(userID uint) (*models.User, error) {
+	var user models.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, models.ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *AuthService) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

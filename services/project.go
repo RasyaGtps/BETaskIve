@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"taskive/models"
 	"time"
 
@@ -48,6 +49,7 @@ func (s *ProjectService) Create(userID uint, input CreateProjectInput) (*models.
 		ProjectID: project.ID,
 		UserID:    userID,
 		Role:      models.MemberRoleOwner,
+		Status:    models.MemberStatusAccepted, // Owner langsung accepted
 	}
 
 	if err := tx.Create(member).Error; err != nil {
@@ -104,7 +106,7 @@ func (s *ProjectService) Delete(projectID uint) error {
 func (s *ProjectService) GetUserProjects(userID uint) ([]models.Project, error) {
 	var projects []models.Project
 	err := s.db.Joins("JOIN project_members ON projects.id = project_members.project_id").
-		Where("project_members.user_id = ?", userID).
+		Where("project_members.user_id = ? AND project_members.status = ?", userID, models.MemberStatusAccepted).
 		Find(&projects).Error
 	return projects, err
 }
@@ -122,6 +124,54 @@ func (s *ProjectService) AddMember(projectID, userID uint, role models.MemberRol
 		ProjectID: projectID,
 		UserID:    userID,
 		Role:      role,
+		Status:    models.MemberStatusPending, // Member baru status pending
 	}
 	return s.db.Create(member).Error
+}
+
+type ProjectInvitation struct {
+	ID          uint      `json:"id"`
+	ProjectID   uint      `json:"project_id"`
+	ProjectName string    `json:"project_name"`
+	Role        string    `json:"role"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (s *ProjectService) GetUserInvitations(userID uint) ([]ProjectInvitation, error) {
+	var invitations []ProjectInvitation
+
+	// Debug: Print the SQL query
+	query := s.db.Table("project_members").
+		Select(`
+			project_members.project_id as id,
+			project_members.project_id as project_id,
+			projects.name as project_name,
+			project_members.role as role,
+			project_members.created_at as created_at
+		`).
+		Joins("LEFT JOIN projects ON projects.id = project_members.project_id").
+		Where("project_members.user_id = ? AND project_members.status = ?", userID, models.MemberStatusPending)
+
+	fmt.Printf("SQL Query: %v\n", query.Statement.SQL.String())
+	fmt.Printf("Query Values: userID=%d, status=%s\n", userID, models.MemberStatusPending)
+
+	err := query.Find(&invitations).Error
+	if err != nil {
+		return nil, fmt.Errorf("error finding invitations: %w", err)
+	}
+
+	fmt.Printf("Found invitations: %+v\n", invitations)
+	return invitations, nil
+}
+
+func (s *ProjectService) AcceptInvitation(projectID, userID uint) error {
+	return s.db.Model(&models.Member{}).
+		Where("project_id = ? AND user_id = ? AND status = ?", projectID, userID, models.MemberStatusPending).
+		Update("status", models.MemberStatusAccepted).Error
+}
+
+func (s *ProjectService) RejectInvitation(projectID, userID uint) error {
+	return s.db.Model(&models.Member{}).
+		Where("project_id = ? AND user_id = ? AND status = ?", projectID, userID, models.MemberStatusPending).
+		Update("status", models.MemberStatusRejected).Error
 } 
